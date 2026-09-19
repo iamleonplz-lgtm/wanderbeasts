@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a3a2a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="description" content="靈跡 WanderBeasts — 原創地點式靈獸探索 RPG" />
+  <title>靈跡 WanderBeasts</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="brand">
+        <span class="brand-icon">✦</span>
+        <span class="brand-text">靈跡</span>
+        <span class="brand-sub">WanderBeasts</span>
+      </div>
+      <div class="status-pills">
+        <button type="button" id="btn-gps" class="pill" title="定位">📍 定位中…</button>
+        <button type="button" id="btn-balls" class="pill" title="靈球">⚪ <span id="ball-count">15</span></button>
+        <button type="button" id="btn-collection" class="pill">🎒 <span id="collection-count">0</span></button>
+      </div>
+    </header>
+    <main id="map-wrap">
+      <div id="map"></div>
+      <div id="hud">
+        <div id="refresh-chip">下波刷新 <span id="refresh-eta">--:--</span></div>
+        <div id="toast" class="hidden"></div>
+      </div>
+    </main>
+    <nav id="bottomnav">
+      <button type="button" class="nav-btn active" data-panel="map" id="nav-map"><span class="nav-ico">🗺️</span><span>地圖</span></button>
+      <button type="button" class="nav-btn" data-panel="party" id="nav-party"><span class="nav-ico">🐾</span><span>隊伍</span></button>
+      <button type="button" class="nav-btn" data-panel="bestiary" id="nav-bestiary"><span class="nav-ico">📖</span><span>圖鑑</span></button>
+      <button type="button" class="nav-btn" data-panel="help" id="nav-help"><span class="nav-ico">❓</span><span>說明</span></button>
+    </nav>
+    <section id="panel-party" class="panel hidden">
+      <div class="panel-head"><h2>我的隊伍</h2><button type="button" class="btn-close" data-close>×</button></div>
+      <p class="hint">最多帶 3 隻挑戰靈壇。</p>
+      <div id="party-list" class="card-list"></div>
+    </section>
+    <section id="panel-bestiary" class="panel hidden">
+      <div class="panel-head"><h2>靈獸圖鑑</h2><button type="button" class="btn-close" data-close>×</button></div>
+      <p class="hint">已收服的會顯示等級與數量。</p>
+      <div id="bestiary-list" class="card-list"></div>
+    </section>
+    <section id="panel-help" class="panel hidden">
+      <div class="panel-head"><h2>怎麼玩</h2><button type="button" class="btn-close" data-close>×</button></div>
+      <div class="help-body">
+        <ol>
+          <li>允許定位，拒絕則進入示範模式（台北）。</li>
+          <li>彩色點是野生靈獸，每 3 分鐘刷新。</li>
+          <li>點靈獸進入捕捉畫面，靈獸會跳動。</li>
+          <li>按住靈球往上甩出。可先投靈餌再丟球。</li>
+        </ol>
+      </div>
+    </section>
+    <div id="modal-encounter" class="modal catch-modal hidden">
+      <div id="catch-stage">
+        <button type="button" class="btn-close modal-x" id="enc-close">×</button>
+        <div id="catch-sky"></div>
+        <div id="catch-ground"></div>
+        <div id="enc-info"><h3 id="enc-name"></h3><p id="enc-meta" class="meta"></p></div>
+        <div id="catch-field">
+          <div id="aim-ring"></div>
+          <div id="enc-creature" class="creature-live"></div>
+          <div id="ball-fx" class="hidden">⚪</div>
+        </div>
+        <div id="catch-area" class="catch-toolbar">
+          <p class="catch-hint">按住靈球<strong>往上甩</strong>丟出 · 或先投靈餌再丟</p>
+          <div class="catch-actions">
+            <button type="button" id="btn-berry" class="btn-secondary catch-item">🍃 靈餌 <span id="berry-count">5</span></button>
+            <div id="ball-pad">
+              <div id="throw-ball" class="throw-ball">⚪</div>
+              <span class="ball-label">靈球 <span id="ball-count-catch">15</span></span>
+            </div>
+          </div>
+        </div>
+        <div id="catch-result" class="hidden">
+          <p id="catch-msg"></p>
+          <button type="button" id="btn-enc-done" class="btn-primary">繼續探索</button>
+        </div>
+      </div>
+    </div>
+    <div id="modal-arena" class="modal hidden">
+      <div class="modal-card modal-wide">
+        <button type="button" class="btn-close modal-x" id="arena-close">×</button>
+        <h3 id="arena-title">靈壇挑戰</h3>
+        <p id="arena-desc" class="meta"></p>
+        <div id="arena-setup">
+          <p class="hint">選擇出戰隊伍（最多 3 隻）：</p>
+          <div id="arena-party-pick" class="card-list compact"></div>
+          <button type="button" id="btn-start-battle" class="btn-primary btn-lg" disabled>開始挑戰</button>
+        </div>
+        <div id="arena-battle" class="hidden">
+          <div class="battle-field">
+            <div class="battle-side enemy">
+              <div id="enemy-sprite" class="creature-hero sm"></div>
+              <div class="hp-bar"><div id="enemy-hp" class="hp-fill"></div></div>
+              <p id="enemy-label"></p>
+            </div>
+            <div class="vs">VS</div>
+            <div class="battle-side ally">
+              <div id="ally-sprite" class="creature-hero sm"></div>
+              <div class="hp-bar"><div id="ally-hp" class="hp-fill ally"></div></div>
+              <p id="ally-label"></p>
+            </div>
+          </div>
+          <p id="battle-log" class="battle-log"></p>
+          <div class="battle-actions">
+            <button type="button" id="btn-atk" class="btn-primary">攻擊</button>
+            <button type="button" id="btn-skill" class="btn-secondary">靈技</button>
+            <button type="button" id="btn-swap" class="btn-ghost">換手</button>
+          </div>
+        </div>
+        <div id="arena-result" class="hidden">
+          <p id="arena-result-msg"></p>
+          <button type="button" id="btn-arena-done" class="btn-primary">返回地圖</button>
+        </div>
+      </div>
+    </div>
+    <footer id="legal">本遊戲為原創虛構，與任天堂／Pokémon 無關</footer>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
